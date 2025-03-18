@@ -1,0 +1,52 @@
+# Gridiron Rampage 3D - Cursor Rules
+
+You are assisting with the development of Gridiron Rampage 3D, an arcade-style 3D street football game built with React Three Fiber.
+
+## Code Style
+
+- Use functional components with hooks, not class components
+- Follow naming conventions: PascalCase for components, camelCase for functions/variables
+- Use 2-space indentation, single quotes, and semicolons
+- Group imports: React, Three.js/R3F, other libraries, internal components, styles
+- Add comments for complex physics calculations and game logic
+
+## Development Patterns
+
+- Use Zustand for state management (see store.jsx for structure)
+- Use refs for direct manipulation of Three.js objects
+- Use useFrame for animations and physics updates
+- Implement proper cleanup in useEffect hooks
+- Avoid physics calculations directly in render loops
+- Separate game logic from rendering logic
+- Use componentization for reusable game elements
+- Prefer mesh instancing for repeated objects
+
+## Three.js/R3F Specific
+
+- Use React Three Fiber patterns for all Three.js code
+- Use Drei helpers when appropriate (e.g., PerspectiveCamera, Environment)
+- Implement proper physics with custom solutions or React Three Rapier
+- Be mindful of performance - use instancing, proper cleanup, and LOD
+- For models, use simple primitives or optimized GLTFs
+
+## Game Mechanics Implementation
+
+- Football physics: use physics-based calculations for trajectory and bounce
+- Rage Meter: accumulate points based on player actions
+- Wall interactions: detect wall proximity for special moves
+- Player controls: implement responsive movement with proper acceleration
+- AI opponents: path-finding and decision-making based on game situation
+
+## Error Handling
+
+- Use try/catch blocks for audio, physics, and user interactions
+- Log errors to console during development
+- Handle missing assets gracefully
+- Implement fallbacks for physics errors
+
+## Project Structure
+
+- Keep components organized by domain function (player, field, UI)
+- Store 3D assets in the public/models directory
+- Keep game state centralized in the Zustand store
+- Use proper typing patterns (PropTypes or TypeScript)

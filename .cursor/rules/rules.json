@@ -1,0 +1,156 @@
+{
+  "repository": {
+    "description": "Gridiron Rampage 3D - A fast-paced, 7-on-7 street football game with wall-running mechanics and arcade gameplay",
+    "domain": "game-development"
+  },
+  "codebase": {
+    "tech_stack": [
+      "React",
+      "Three.js",
+      "React Three Fiber",
+      "React Three Drei",
+      "Zustand",
+      "Vite"
+    ],
+    "architecture": "Component-based React application with Three.js for 3D rendering",
+    "style_guide": {
+      "naming": {
+        "components": "PascalCase",
+        "functions": "camelCase",
+        "variables": "camelCase",
+        "constants": "UPPER_SNAKE_CASE",
+        "files": {
+          "components": "PascalCase.jsx",
+          "util": "camelCase.js"
+        }
+      },
+      "formatting": {
+        "indentation": "2 spaces",
+        "quotes": "single",
+        "semicolons": true,
+        "max_line_length": 100
+      }
+    }
+  },
+  "ai_preferences": {
+    "code_generation": {
+      "prefer_functional_components": true,
+      "prefer_arrow_functions": true,
+      "prefer_hooks_over_classes": true,
+      "prefer_useRef_over_useState_for_stable_values": true,
+      "include_jsdoc_comments_for_complex_functions": true,
+      "use_three_fiber_patterns": true
+    },
+    "refactoring": {
+      "keep_consistent_with_existing_code": true,
+      "preserve_comments": true,
+      "preserve_formatting": true
+    },
+    "reviewing": {
+      "focus_on": [
+        "performance issues in 3D rendering",
+        "state management efficiency",
+        "proper physics implementation",
+        "memory leaks in animations or effects",
+        "consistent use of Zustand store"
+      ]
+    }
+  },
+  "project_structure": {
+    "src": {
+      "description": "Source code directory",
+      "components": {
+        "description": "React components",
+        "models": {
+          "description": "3D models and objects"
+        }
+      },
+      "main.jsx": "Application entry point",
+      "App.jsx": "Main application component",
+      "HUD.jsx": "Heads-up display component",
+      "Landing.jsx": "Landing/title screen component",
+      "index.css": "Global CSS styles"
+    },
+    "public": {
+      "description": "Static assets",
+      "models": "3D model files",
+      "images": "Image assets",
+      "sounds": "Audio files"
+    }
+  },
+  "best_practices": {
+    "general": [
+      "Use React Three Fiber's useFrame for animations",
+      "Implement proper cleanup in useEffect hooks",
+      "Use Zustand for state management",
+      "Avoid large component rerenders by using memo where appropriate",
+      "Use React Three Drei helpers for common Three.js tasks"
+    ],
+    "performance": [
+      "Use instances for repeated objects",
+      "Implement level of detail (LOD) for complex models",
+      "Use object pooling for particle effects",
+      "Keep physics calculations simple",
+      "Use Suspense for asset loading"
+    ],
+    "game_development": [
+      "Separate game logic from rendering logic",
+      "Use consistent physics timesteps",
+      "Implement proper collision detection",
+      "Use the Rage Meter pattern consistently across components",
+      "Implement proper audio management with volume control"
+    ]
+  },
+  "development_workflow": {
+    "commands": {
+      "start": "npm run dev",
+      "build": "npm run build",
+      "preview": "npm run preview"
+    },
+    "testing": {
+      "approach": "Manual testing during development",
+      "focus_areas": [
+        "Player controls responsiveness",
+        "Physics accuracy",
+        "Game mechanics (scoring, downs)",
+        "Performance on target devices"
+      ]
+    }
+  },
+  "coding_conventions": {
+    "imports": {
+      "ordering": [
+        "React and React hooks",
+        "Three.js and React Three Fiber/Drei",
+        "Other external libraries",
+        "Internal components",
+        "Utilities and helpers",
+        "Styles"
+      ],
+      "grouping": "Group imports by type with a blank line between groups"
+    },
+    "component_structure": {
+      "order": [
+        "Import statements",
+        "Component definition",
+        "Refs and state declarations",
+        "Effects",
+        "Helper functions",
+        "useFrame or animation related code",
+        "Return statement with JSX"
+      ]
+    },
+    "state_management": {
+      "approach": "Use Zustand store for shared state",
+      "local_state": "Use useState or useReducer for component-specific state",
+      "refs": "Use useRef for values that don't trigger re-renders"
+    },
+    "error_handling": {
+      "approach": "Use try/catch blocks for audio, physics, and user interactions",
+      "logging": "Use console.error for development and catch all runtime errors"
+    }
+  },
+  "file_templates": {
+    "component": "import React, { useRef, useEffect } from 'react';\nimport { useFrame } from '@react-three/fiber';\nimport { useStore } from './store';\n\nexport const ComponentName = ({ prop1, prop2 }) => {\n  const ref = useRef();\n  \n  // Your code here\n  \n  return (\n    <mesh ref={ref}>\n      {/* Component content */}\n    </mesh>\n  );\n};"
+  }
+}
