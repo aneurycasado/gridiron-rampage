@@ -1,106 +1,265 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
+import { useGLTF, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { useStore } from '../../store';
 import { RigidBody } from '@react-three/rapier';
 
-// List of available Kenny character models
-const CHARACTER_MODELS = [
-  '/models/characters/character-male-a.glb',
-  '/models/characters/character-male-b.glb',
-  '/models/characters/character-male-c.glb',
-  '/models/characters/character-male-d.glb',
-];
+// Define model paths
+const MODEL_PATH_BLUE = '/models/characters/character-male-a.glb';
+const MODEL_PATH_RED = '/models/characters/character-male-b.glb';
 
-// Select a default model
-const DEFAULT_MODEL = CHARACTER_MODELS[0];
+// Team constants for easy referencing
+export const TEAM = {
+  OFFENSE: 0,
+  DEFENSE: 1,
+};
 
-export const KennyPlayer = React.forwardRef(({ isMoving = false, direction = 0, scale = [1, 1, 1] }, ref) => {
-  const { scene, animations } = useGLTF(DEFAULT_MODEL);
+// Role-based model assignment - simplified for reliability
+export const getRoleBasedModelIndex = (role, teamType) => {
+  // Just use team type for now - simplified approach
+  return teamType === TEAM.OFFENSE ? TEAM.OFFENSE : TEAM.DEFENSE;
+};
+
+// Simple debug label
+const DebugLabel = ({ role, teamType, enabled = true }) => {
+  if (!enabled) return null;
+  
+  return (
+    <Html
+      position={[0, 2.3, 0]}
+      center
+      distanceFactor={10}
+      style={{
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        color: 'white',
+        padding: '1px 4px',
+        borderRadius: '2px',
+        fontSize: '8px',
+        userSelect: 'none',
+        pointerEvents: 'none'
+      }}
+    >
+      {role} - {teamType === TEAM.OFFENSE ? 'OFF' : 'DEF'}
+    </Html>
+  );
+};
+
+// Load models in advance - outside of component
+// This ensures they're only loaded once
+const blueModel = { loaded: false };
+const redModel = { loaded: false };
+
+try {
+  console.log("Preloading offensive player model:", MODEL_PATH_BLUE);
+  useGLTF.preload(MODEL_PATH_BLUE);
+  blueModel.loaded = true;
+} catch (error) {
+  console.error("Failed to preload offensive model:", error);
+}
+
+try {
+  console.log("Preloading defensive player model:", MODEL_PATH_RED);
+  useGLTF.preload(MODEL_PATH_RED);
+  redModel.loaded = true;
+} catch (error) {
+  console.error("Failed to preload defensive model:", error);
+}
+
+// Main player component
+export const KennyPlayer = React.forwardRef(({ 
+  isMoving = false, 
+  direction = 0, 
+  scale = [1, 1, 1],
+  modelIndex = TEAM.OFFENSE,
+  role = 'PLAYER'
+}, ref) => {
+  // Direct model path based on team
+  const modelPath = modelIndex === TEAM.OFFENSE ? MODEL_PATH_BLUE : MODEL_PATH_RED;
+  
+  // Setup refs and state
   const modelRef = useRef();
-  const mixerRef = useRef();
   const actionsRef = useRef({});
-  const [currentAnimation, setCurrentAnimation] = useState('idle');
-
-  useEffect(() => {
-    if (scene && animations.length > 0) {
-      // Create animation mixer
-      mixerRef.current = new THREE.AnimationMixer(scene);
+  const mixerRef = useRef(null);
+  const [modelError, setModelError] = useState(false);
+  
+  // Use memoized model loading to prevent unnecessary reloads
+  const { scene, animations } = useMemo(() => {
+    try {
+      console.log(`Loading model: ${modelPath} for ${role}`);
+      const gltf = useGLTF(modelPath);
       
-      // Create actions for each animation
-      animations.forEach((clip) => {
-        const action = mixerRef.current.clipAction(clip);
-        actionsRef.current[clip.name] = action;
-      });
-
-      // Set up initial animation
-      if (actionsRef.current['idle']) {
-        actionsRef.current['idle'].play();
-      }
+      // Clone the scene to avoid shared materials issues
+      const sceneClone = gltf.scene.clone(true);
+      
+      console.log(`Model loaded successfully: ${modelPath} (${gltf.animations.length} animations)`);
+      return { 
+        scene: sceneClone, 
+        animations: gltf.animations 
+      };
+    } catch (error) {
+      console.error(`Failed to load model: ${modelPath}`, error);
+      setModelError(true);
+      return { scene: null, animations: [] };
     }
-
+  }, [modelPath]);
+  
+  // Initialize animations
+  useEffect(() => {
+    if (!scene || !animations || animations.length === 0 || modelError) return;
+    
+    try {
+      // Create a new animation mixer for this instance
+      const mixer = new THREE.AnimationMixer(scene);
+      mixerRef.current = mixer;
+      
+      // Extract actions for idle and walk
+      let hasIdle = false;
+      let hasWalk = false;
+      
+      animations.forEach(clip => {
+        try {
+          const action = mixer.clipAction(clip);
+          
+          if (clip.name === 'idle') {
+            actionsRef.current.idle = action;
+            hasIdle = true;
+          } else if (clip.name === 'walk') {
+            actionsRef.current.walk = action;
+            hasWalk = true;
+          } else {
+            // Store other animations just in case
+            actionsRef.current[clip.name] = action;
+          }
+        } catch (e) {
+          console.warn(`Failed to setup animation: ${clip.name}`, e);
+        }
+      });
+      
+      console.log(`Player ${role} animations: idle=${hasIdle}, walk=${hasWalk}`);
+      
+      // Start idle animation by default
+      if (hasIdle) {
+        actionsRef.current.idle.play();
+      } else if (hasWalk) {
+        // Fall back to walk if idle not available
+        actionsRef.current.walk.play();
+      } else if (animations.length > 0) {
+        // Last resort: use any available animation
+        const firstAction = mixer.clipAction(animations[0]);
+        firstAction.play();
+      }
+    } catch (error) {
+      console.error("Animation setup failed:", error);
+      setModelError(true);
+    }
+    
     return () => {
       if (mixerRef.current) {
         mixerRef.current.stopAllAction();
       }
     };
-  }, [scene, animations]);
-
-  // Update animation state when movement changes
-  useEffect(() => {
-    // Only animate when actually moving
-    const animationState = isMoving ? 'walk' : 'idle';
-    if (currentAnimation !== animationState) {
-      setCurrentAnimation(animationState);
-    }
-  }, [isMoving, currentAnimation]);
-
+  }, [scene, animations, modelError, role]);
+  
+  // Handle animation updates
   useFrame((state, delta) => {
-    // Only update animation mixer when player is moving or transitioning
-    if (mixerRef.current && isMoving) {
+    if (modelError || !mixerRef.current) return;
+    
+    try {
+      // Always update the mixer to ensure animations play
       mixerRef.current.update(delta);
-    }
-
-    // Update animations based on movement state
-    if (actionsRef.current) {
-      if (isMoving && actionsRef.current['walk']) {
-        // Play walk animation when moving
-        if (!actionsRef.current['walk'].isRunning()) {
-          // Stop all other animations
-          Object.values(actionsRef.current).forEach(action => {
-            if (action.isRunning()) action.stop();
-          });
-          
-          // Start walk animation
-          actionsRef.current['walk'].reset().fadeIn(0.2).play();
-        }
-      } else if (!isMoving) {
-        // Stop all animations when not moving
-        Object.values(actionsRef.current).forEach(action => {
-          if (action.isRunning()) action.stop();
-        });
+      
+      // Update model rotation to match direction
+      if (modelRef.current && direction !== undefined) {
+        modelRef.current.rotation.y = THREE.MathUtils.lerp(
+          modelRef.current.rotation.y,
+          direction,
+          0.1
+        );
       }
-    }
-
-    // Smoothly rotate the model to face the direction of movement
-    if (modelRef.current && direction !== 0) {
-      modelRef.current.rotation.y = THREE.MathUtils.lerp(
-        modelRef.current.rotation.y,
-        direction,
-        0.1
-      );
+      
+      // Handle animation transitions
+      if (actionsRef.current.idle && actionsRef.current.walk) {
+        if (isMoving && !actionsRef.current.walk.isRunning()) {
+          // Switch to walk animation
+          actionsRef.current.idle.fadeOut(0.2);
+          actionsRef.current.walk.reset().fadeIn(0.2).play();
+        } else if (!isMoving && !actionsRef.current.idle.isRunning()) {
+          // Switch to idle animation
+          actionsRef.current.walk.fadeOut(0.2);
+          actionsRef.current.idle.reset().fadeIn(0.2).play();
+        }
+      }
+    } catch (e) {
+      console.error("Animation frame error:", e);
     }
   });
-
+  
+  // Get team color
+  const getTeamColor = () => {
+    return modelIndex === TEAM.OFFENSE ? '#2277ff' : '#ff3333';
+  };
+  
+  // Used for debugging - enable in development
+  const showDebugInfo = import.meta.env.DEV;
+  
   return (
     <group ref={ref} scale={scale}>
-      <primitive ref={modelRef} object={scene} />
+      {scene && !modelError ? (
+        // Render actual 3D model when available
+        <group>
+          <primitive 
+            ref={modelRef} 
+            object={scene} 
+            dispose={null} 
+          />
+          
+          {/* Position indicator */}
+          <mesh position={[0, 1.8, 0]} scale={0.08}>
+            <sphereGeometry args={[1, 8, 8]} />
+            <meshBasicMaterial color={getTeamColor()} />
+          </mesh>
+          
+          {/* Debug label */}
+          {showDebugInfo && (
+            <DebugLabel 
+              role={role} 
+              teamType={modelIndex} 
+            />
+          )}
+        </group>
+      ) : (
+        // Fallback shape when model fails to load
+        <group>
+          {/* Basic player shape */}
+          <mesh>
+            <capsuleGeometry args={[0.25, 1, 4, 8]} />
+            <meshStandardMaterial 
+              color={modelIndex === TEAM.OFFENSE ? '#0066cc' : '#cc0000'} 
+            />
+          </mesh>
+          <mesh position={[0, 0.7, 0]}>
+            <sphereGeometry args={[0.2, 8, 8]} />
+            <meshStandardMaterial color="#ffcc99" />
+          </mesh>
+          
+          {/* Position indicator */}
+          <mesh position={[0, 1.8, 0]} scale={0.1}>
+            <sphereGeometry args={[1, 8, 8]} />
+            <meshBasicMaterial color={getTeamColor()} />
+          </mesh>
+          
+          {/* Debug label */}
+          {showDebugInfo && (
+            <DebugLabel 
+              role={role} 
+              teamType={modelIndex} 
+            />
+          )}
+        </group>
+      )}
     </group>
   );
 });
 
-// Preload all Kenny character models for use in the game
-CHARACTER_MODELS.forEach(path => {
-  useGLTF.preload(path);
-});
+// Ensure immediate preloading execution
+console.log("Initializing KennyPlayer models...");
