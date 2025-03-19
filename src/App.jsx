@@ -6,6 +6,8 @@ import { useStore } from "./components/store";
 import * as THREE from "three";
 import { Landing } from './Landing'
 import { HUD } from './HUD'
+import { PauseMenu } from './components/PauseMenu'
+import { PauseButton } from './components/PauseButton'
 
 export const Controls = {
   up: 'up',
@@ -46,6 +48,8 @@ function App() {
       {/* UI Components */}
       <Landing />
       <HUD />
+      <PauseButton />
+      <PauseMenu />
       <Loader />
       
       {/* 3D Scene */}
@@ -61,7 +65,10 @@ function App() {
           gl={{ 
             antialias: true,
             alpha: false,
-            powerPreference: 'high-performance'
+            powerPreference: 'high-performance',
+            precision: 'highp', // Use high precision for better quality
+            stencil: false,     // Disable stencil buffer if not needed
+            depth: true         // Ensure depth testing is enabled
           }}
           onCreated={({ gl }) => {
             gl.toneMapping = THREE.ACESFilmicToneMapping

@@ -10,18 +10,20 @@ import { Physics } from '@react-three/rapier';
 import * as THREE from 'three';
 
 export const Experience = () => {
-  const { gameStarted, rageMode, players } = useStore();
+  const { gameStarted, gamePaused, rageMode, players } = useStore();
   const cameraRef = useRef();
   const playerRef = useRef();
   const bodyRef = useRef();
   const footballRef = useRef();
   
-  // Camera settings
+  // Camera settings - keep camera a fixed distance behind player
   const cameraOffset = useRef({
-    x: 0,
-    y: 5,
-    z: 10
+    height: 4,      // Camera height above player
+    distance: 8     // Distance behind player (in +Z direction)
   });
+  
+  // Camera target position for smooth transitions
+  const targetCameraPosition = useRef(new THREE.Vector3(0, 0, 0));
   
   // Generate a stable football ID
   const footballId = useMemo(() => `football-${Math.random().toString(36).substr(2, 9)}`, []);
@@ -30,6 +32,9 @@ export const Experience = () => {
   const mainPlayer = useMemo(() => players[0], [players]);
   
   useFrame((state, delta) => {
+    // Skip frame updates when the game is paused
+    if (gamePaused) return;
+    
     if (!gameStarted) {
       // Intro camera rotation
       const time = state.clock.getElapsedTime() * 0.2;
@@ -41,22 +46,67 @@ export const Experience = () => {
         cameraRef.current.lookAt(0, 0, 0);
       }
     }
-    else if (gameStarted && playerRef.current) {
+    else if (gameStarted && mainPlayer && mainPlayer.ref && mainPlayer.ref.current) {
       try {
-        const playerPos = playerRef.current.translation();
+        // Get player position
+        const playerPos = mainPlayer.ref.current.translation();
         
         if (cameraRef.current) {
-          // Update camera position to follow player with offset
-          cameraRef.current.position.x = playerPos.x + cameraOffset.current.x;
-          cameraRef.current.position.y = playerPos.y + cameraOffset.current.y;
-          cameraRef.current.position.z = playerPos.z + cameraOffset.current.z;
+          // Keep camera directly behind player in world space (ignore player rotation)
+          // This makes camera only follow player position, not rotation
           
-          // Make camera look at player
-          cameraRef.current.lookAt(
-            playerPos.x,
-            playerPos.y + 1, // Look slightly above player
-            playerPos.z
+          // Let's fix coordinate system understanding
+          // In our game setup:
+          // Player initially faces -Z direction
+          // Camera should be at +Z relative to player (behind them)
+          
+          // Calculate target camera position (always behind player in world space)
+          const targetX = playerPos.x;
+          const targetY = playerPos.y + cameraOffset.current.height;
+          const targetZ = playerPos.z + cameraOffset.current.distance;
+          
+          // Apply slight damping to reduce lateral (X) camera movement jitter
+          // This helps prevent blurriness when moving right
+          const dampedX = cameraRef.current.position.x * 0.05 + targetX * 0.95;
+          
+          targetCameraPosition.current.set(
+            dampedX,
+            targetY,
+            targetZ
           );
+          
+          // Use different lerp speeds for different axes to prevent blurry camera movement
+          // Slower lerp for X axis (side-to-side) to reduce blur when moving right
+          cameraRef.current.position.x = THREE.MathUtils.lerp(
+            cameraRef.current.position.x, 
+            targetCameraPosition.current.x, 
+            delta * 5.0 // Faster X transition
+          );
+          
+          // Standard lerp for Y (height)
+          cameraRef.current.position.y = THREE.MathUtils.lerp(
+            cameraRef.current.position.y, 
+            targetCameraPosition.current.y, 
+            delta * 2.5
+          );
+          
+          // Standard lerp for Z (distance)
+          cameraRef.current.position.z = THREE.MathUtils.lerp(
+            cameraRef.current.position.z, 
+            targetCameraPosition.current.z, 
+            delta * 2.5
+          );
+          
+          // Create a smoothed lookAt target
+          // Use the same damping for X axis to match camera position damping
+          const lookAtTarget = new THREE.Vector3(
+            dampedX,                // Damped X position (reduces blur)
+            playerPos.y + 1,        // Look slightly above player
+            playerPos.z             // Look at player's Z position
+          );
+          
+          // Make camera look at the smoothed target
+          cameraRef.current.lookAt(lookAtTarget);
         }
       } catch (error) {
         console.error("Camera tracking error:", error);
@@ -89,8 +139,8 @@ export const Experience = () => {
       <PerspectiveCamera
         ref={cameraRef}
         makeDefault
-        position={[0, 10, 30]}
-        fov={75}
+        position={[0, 5, 10]} // Initial position, will be updated
+        fov={60}
         near={0.1}
         far={1000}
       />

@@ -15,6 +15,7 @@ export const playSound = (path, volume = 1.0) => {
 
 export const useStore = create((set, get) => ({
   gameStarted: false, // Game state - whether the game has started
+  gamePaused: false, // Game state - whether the game is paused
   controls: "keyboard", // Default control type
   players: [], // Player references
   player: null, // Main player
@@ -36,6 +37,15 @@ export const useStore = create((set, get) => ({
       console.log(`Setting game started to: ${gameStarted}`);
       set({ gameStarted });
     },
+    togglePause: () => {
+      const { gamePaused } = get();
+      console.log(`Toggling game paused from ${gamePaused} to ${!gamePaused}`);
+      set({ gamePaused: !gamePaused });
+    },
+    setPaused: (paused) => {
+      console.log(`Setting game paused to: ${paused}`);
+      set({ gamePaused: paused });
+    },
     setControls: (controls) => {
       set({ controls });
     },
@@ -51,11 +61,11 @@ export const useStore = create((set, get) => ({
         players: state.players.filter(p => p.id !== playerId),
       }));
     },
-    updatePlayerPosition: (playerId, position) => {
+    updatePlayerPosition: (playerId, position, rotation = 0) => {
       set((state) => ({
         players: state.players.map(p => 
           p.id === playerId 
-            ? { ...p, position }
+            ? { ...p, position, rotation }
             : p
         ),
       }));

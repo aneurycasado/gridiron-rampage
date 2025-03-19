@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -16,11 +16,12 @@ const CHARACTER_MODELS = [
 // Select a default model
 const DEFAULT_MODEL = CHARACTER_MODELS[0];
 
-export const KennyPlayer = React.forwardRef(({ isMoving = false, scale = [1, 1, 1] }, ref) => {
+export const KennyPlayer = React.forwardRef(({ isMoving = false, direction = 0, scale = [1, 1, 1] }, ref) => {
   const { scene, animations } = useGLTF(DEFAULT_MODEL);
   const modelRef = useRef();
   const mixerRef = useRef();
   const actionsRef = useRef({});
+  const [currentAnimation, setCurrentAnimation] = useState('idle');
 
   useEffect(() => {
     if (scene && animations.length > 0) {
@@ -46,21 +47,49 @@ export const KennyPlayer = React.forwardRef(({ isMoving = false, scale = [1, 1, 
     };
   }, [scene, animations]);
 
+  // Update animation state when movement changes
+  useEffect(() => {
+    // Only animate when actually moving
+    const animationState = isMoving ? 'walk' : 'idle';
+    if (currentAnimation !== animationState) {
+      setCurrentAnimation(animationState);
+    }
+  }, [isMoving, currentAnimation]);
+
   useFrame((state, delta) => {
-    if (mixerRef.current) {
+    // Only update animation mixer when player is moving or transitioning
+    if (mixerRef.current && isMoving) {
       mixerRef.current.update(delta);
     }
 
-    // Update animations based on movement
+    // Update animations based on movement state
     if (actionsRef.current) {
-      const currentAction = isMoving ? 'walk' : 'idle';
-      Object.entries(actionsRef.current).forEach(([name, action]) => {
-        if (name === currentAction && !action.isRunning()) {
-          action.reset().fadeIn(0.2).play();
-        } else if (name !== currentAction && action.isRunning()) {
-          action.fadeOut(0.2);
+      if (isMoving && actionsRef.current['walk']) {
+        // Play walk animation when moving
+        if (!actionsRef.current['walk'].isRunning()) {
+          // Stop all other animations
+          Object.values(actionsRef.current).forEach(action => {
+            if (action.isRunning()) action.stop();
+          });
+          
+          // Start walk animation
+          actionsRef.current['walk'].reset().fadeIn(0.2).play();
         }
-      });
+      } else if (!isMoving) {
+        // Stop all animations when not moving
+        Object.values(actionsRef.current).forEach(action => {
+          if (action.isRunning()) action.stop();
+        });
+      }
+    }
+
+    // Smoothly rotate the model to face the direction of movement
+    if (modelRef.current && direction !== 0) {
+      modelRef.current.rotation.y = THREE.MathUtils.lerp(
+        modelRef.current.rotation.y,
+        direction,
+        0.1
+      );
     }
   });
 
