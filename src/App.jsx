@@ -8,6 +8,7 @@ import { Landing } from './Landing'
 import { HUD } from './HUD'
 import { PauseMenu } from './components/PauseMenu'
 import { PauseButton } from './components/PauseButton'
+import { GameEngine } from './components/GameEngine'
 
 export const Controls = {
   up: 'up',
@@ -25,6 +26,8 @@ export const Controls = {
 }
 
 function App() {
+  const { gamePhase } = useStore();
+  
   const map = useMemo(
     () => [
       { name: Controls.up, keys: ['KeyW', 'ArrowUp'] },
@@ -43,6 +46,9 @@ function App() {
     []
   )
 
+  // Determine if we should show the 3D scene or not based on game phase
+  const showGame = gamePhase === 'playing';
+
   return (
     <>
       {/* UI Components */}
@@ -51,6 +57,9 @@ function App() {
       <PauseButton />
       <PauseMenu />
       <Loader />
+      
+      {/* Game Engine - Handles football game logic */}
+      <GameEngine />
       
       {/* 3D Scene */}
       <KeyboardControls map={map}>

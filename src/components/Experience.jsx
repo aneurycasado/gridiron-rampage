@@ -10,7 +10,7 @@ import { Physics } from '@react-three/rapier';
 import * as THREE from 'three';
 
 export const Experience = () => {
-  const { gameStarted, gamePaused, rageMode, players } = useStore();
+  const { gameStarted, gamePaused, gamePhase, rageMode, players } = useStore();
   const cameraRef = useRef();
   const playerRef = useRef();
   const bodyRef = useRef();
@@ -31,12 +31,15 @@ export const Experience = () => {
   // Get the main player
   const mainPlayer = useMemo(() => players[0], [players]);
   
+  // Only run game physics when in 'playing' phase
+  const isPlayingPhase = gamePhase === 'playing';
+  
   useFrame((state, delta) => {
     // Skip frame updates when the game is paused
     if (gamePaused) return;
     
-    if (!gameStarted) {
-      // Intro camera rotation
+    if (!gameStarted || !isPlayingPhase) {
+      // Intro camera rotation for non-gameplay phases
       const time = state.clock.getElapsedTime() * 0.2;
       const radius = 30;
       
@@ -46,7 +49,7 @@ export const Experience = () => {
         cameraRef.current.lookAt(0, 0, 0);
       }
     }
-    else if (gameStarted && mainPlayer && mainPlayer.ref && mainPlayer.ref.current) {
+    else if (gameStarted && isPlayingPhase && mainPlayer && mainPlayer.ref && mainPlayer.ref.current) {
       try {
         // Get player position
         const playerPos = mainPlayer.ref.current.translation();
@@ -115,7 +118,7 @@ export const Experience = () => {
   });
 
   // Football component
-  const FootballComponent = gameStarted ? (
+  const FootballComponent = gameStarted && isPlayingPhase ? (
     <Football 
       key={footballId}
       id={footballId}
@@ -124,8 +127,8 @@ export const Experience = () => {
     />
   ) : null;
 
-  // Player component
-  const PlayerComponent = gameStarted ? (
+  // Player component - only shown during active gameplay
+  const PlayerComponent = gameStarted && isPlayingPhase ? (
     <PlayerController 
       key="main-player"
       ref={playerRef}

@@ -14,28 +14,75 @@ export const playSound = (path, volume = 1.0) => {
 };
 
 export const useStore = create((set, get) => ({
-  gameStarted: false, // Game state - whether the game has started
-  gamePaused: false, // Game state - whether the game is paused
-  controls: "keyboard", // Default control type
-  players: [], // Player references
-  player: null, // Main player
-  ragePoints: 0, // Current rage meter points
-  rageMode: false, // Whether rage mode is active
-  footballs: [], // Football objects in the game
-  activePossession: null, // ID of player who has the ball
+  // Game state
+  gameStarted: false,
+  gamePaused: false,
+  gamePhase: "pregame", // pregame, coinToss, playSelection, playExecution, playing, playOutcome, endGame
+  controls: "keyboard",
+  
+  // Teams and players
+  players: [],
+  player: null,
+  teams: {
+    home: {
+      name: "Home Team",
+      players: [],
+      coach: "Coach Home"
+    },
+    away: {
+      name: "Away Team",
+      players: [],
+      coach: "Coach Away"
+    }
+  },
+  
+  // Game mechanics
+  ragePoints: 0,
+  rageMode: false,
+  footballs: [],
+  activePossession: null,
+  
+  // Football rules state
   score: {
-    player: 0,
-    opponent: 0
+    home: 0,
+    away: 0
   },
   downs: {
     current: 1,
     toGo: 10,
     position: 20
   },
+  
+  // Game clock
+  gameTime: {
+    quarter: 1, 
+    time: 720, // 12 minutes in seconds
+    clockRunning: false
+  },
+  
+  // Play selection
+  currentTeamPossession: "home",
+  selectedOffensivePlay: null,
+  selectedDefensivePlay: null,
+  playResult: null,
+  
+  // Player tracking for interactive gameplay
+  playerStats: {
+    startingYardLine: 0,
+    yardsGained: 0,
+    playPerformance: 1.0,
+    successfulMoves: 0
+  },
+  
   actions: {
+    // Game state management
     setGameStarted: (gameStarted) => {
       console.log(`Setting game started to: ${gameStarted}`);
       set({ gameStarted });
+    },
+    setGamePhase: (gamePhase) => {
+      console.log(`Setting game phase to: ${gamePhase}`);
+      set({ gamePhase });
     },
     togglePause: () => {
       const { gamePaused } = get();
@@ -49,6 +96,8 @@ export const useStore = create((set, get) => ({
     setControls: (controls) => {
       set({ controls });
     },
+    
+    // Player management
     addPlayer: (player) => {
       console.log(`Adding player with ID: ${player.id}`);
       set((state) => ({
@@ -73,6 +122,224 @@ export const useStore = create((set, get) => ({
     setPlayer: (player) => {
       set({ player });
     },
+    
+    // Game clock management
+    startClock: () => {
+      set(state => ({
+        gameTime: {
+          ...state.gameTime,
+          clockRunning: true
+        }
+      }));
+    },
+    stopClock: () => {
+      set(state => ({
+        gameTime: {
+          ...state.gameTime,
+          clockRunning: false
+        }
+      }));
+    },
+    updateClock: (seconds) => {
+      set(state => {
+        // Calculate new time
+        let newTime = state.gameTime.time - seconds;
+        let newQuarter = state.gameTime.quarter;
+        
+        // Handle quarter changes
+        if (newTime <= 0) {
+          newQuarter += 1;
+          newTime = 720; // Reset to 12 minutes for new quarter
+          
+          // If game is over (4 quarters completed)
+          if (newQuarter > 4) {
+            return {
+              gamePhase: "endGame",
+              gameTime: {
+                ...state.gameTime,
+                quarter: 4,
+                time: 0,
+                clockRunning: false
+              }
+            };
+          }
+          
+          // Pause clock between quarters
+          return {
+            gameTime: {
+              quarter: newQuarter,
+              time: newTime,
+              clockRunning: false
+            }
+          };
+        }
+        
+        // Regular time update
+        return {
+          gameTime: {
+            ...state.gameTime,
+            time: newTime
+          }
+        };
+      });
+    },
+    
+    // Team and possession management
+    setTeamPossession: (team) => {
+      set({ currentTeamPossession: team });
+    },
+    flipTeamPossession: () => {
+      const { currentTeamPossession } = get();
+      const newTeam = currentTeamPossession === "home" ? "away" : "home";
+      set({ currentTeamPossession: newTeam });
+    },
+    
+    // Score and downs management
+    addScore: (team, points) => {
+      set((state) => ({
+        score: {
+          ...state.score,
+          [team]: state.score[team] + points
+        }
+      }));
+    },
+    resetDowns: () => {
+      set({
+        downs: {
+          current: 1,
+          toGo: 10,
+          position: 20 // Starting at the 20 yard line
+        }
+      });
+    },
+    advanceDown: (yardsGained) => {
+      const { downs, currentTeamPossession } = get();
+      
+      // Update position
+      const newPosition = downs.position + yardsGained;
+      
+      // Check if touchdown (reached opponent's end zone at 100 yards)
+      if (newPosition >= 100) {
+        // Score touchdown
+        get().actions.addScore(currentTeamPossession, 7);
+        
+        // Reset position to the 20 yard line, change possession, reset downs
+        set({
+          downs: {
+            current: 1,
+            toGo: 10,
+            position: 20
+          }
+        });
+        
+        // Change possession
+        get().actions.flipTeamPossession();
+        
+        return { result: "touchdown", yards: yardsGained };
+      }
+      
+      // Check if first down was achieved
+      if (yardsGained >= downs.toGo) {
+        set({
+          downs: {
+            current: 1,
+            toGo: 10,
+            position: newPosition
+          }
+        });
+        
+        return { result: "firstDown", yards: yardsGained };
+      } else if (downs.current === 4) {
+        // Turnover on downs
+        set({
+          downs: {
+            current: 1,
+            toGo: 10,
+            position: 100 - newPosition // Flip field position
+          }
+        });
+        
+        // Change possession
+        get().actions.flipTeamPossession();
+        
+        return { result: "turnover", yards: yardsGained };
+      } else {
+        // Increment down
+        set({
+          downs: {
+            current: downs.current + 1,
+            toGo: downs.toGo - yardsGained,
+            position: newPosition
+          }
+        });
+        
+        return { result: "downAdvanced", yards: yardsGained };
+      }
+    },
+    
+    // Play selection management
+    selectOffensivePlay: (play) => {
+      set({ selectedOffensivePlay: play });
+    },
+    selectDefensivePlay: (play) => {
+      set({ selectedDefensivePlay: play });
+    },
+    setPlayResult: (result) => {
+      set({ playResult: result });
+    },
+    resetPlaySelection: () => {
+      set({
+        selectedOffensivePlay: null,
+        selectedDefensivePlay: null,
+        playResult: null
+      });
+    },
+    
+    // Player performance tracking
+    setPlayerStartingYardLine: (yardLine) => {
+      set(state => ({
+        playerStats: {
+          ...state.playerStats,
+          startingYardLine: yardLine
+        }
+      }));
+    },
+    updatePlayerYardsGained: (yards) => {
+      set(state => ({
+        playerStats: {
+          ...state.playerStats,
+          yardsGained: yards
+        }
+      }));
+    },
+    setPlayerPerformance: (performance) => {
+      set(state => ({
+        playerStats: {
+          ...state.playerStats,
+          playPerformance: performance
+        }
+      }));
+    },
+    incrementSuccessfulMoves: () => {
+      set(state => ({
+        playerStats: {
+          ...state.playerStats,
+          successfulMoves: state.playerStats.successfulMoves + 1
+        }
+      }));
+    },
+    resetPlayerStats: () => {
+      set({
+        playerStats: {
+          startingYardLine: 0,
+          yardsGained: 0,
+          playPerformance: 1.0,
+          successfulMoves: 0
+        }
+      });
+    },
+    
+    // Rage mode (for special abilities)
     addRagePoints: (points) => {
       set((state) => ({
         ragePoints: Math.min(state.ragePoints + points, 100),
@@ -92,49 +359,7 @@ export const useStore = create((set, get) => ({
         }, 15000);
       }
     },
-    addScore: (team, points) => {
-      set((state) => ({
-        score: {
-          ...state.score,
-          [team]: state.score[team] + points
-        }
-      }));
-    },
-    advanceDown: (yardsGained) => {
-      const { downs } = get();
-      
-      // Update position
-      const newPosition = downs.position + yardsGained;
-      
-      // Check if first down was achieved
-      if (yardsGained >= downs.toGo) {
-        set({
-          downs: {
-            current: 1,
-            toGo: 10,
-            position: newPosition
-          }
-        });
-      } else if (downs.current === 4) {
-        // Turnover on downs
-        set({
-          downs: {
-            current: 1,
-            toGo: 10,
-            position: 100 - newPosition // Flip field position
-          }
-        });
-      } else {
-        // Increment down
-        set({
-          downs: {
-            current: downs.current + 1,
-            toGo: downs.toGo - yardsGained,
-            position: newPosition
-          }
-        });
-      }
-    },
+    
     // Football related actions
     addFootball: (football) => {
       // Check if football with this ID already exists to prevent duplicates
