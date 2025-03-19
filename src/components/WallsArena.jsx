@@ -1,4 +1,5 @@
 import React from 'react';
+import { RigidBody } from '@react-three/rapier';
 
 export function WallsArena() {
   // Field dimensions
@@ -51,15 +52,15 @@ export function WallsArena() {
 
 function WallSection({ position, scale, rotation }) {
   return (
-    <mesh
-      castShadow
-      receiveShadow
-      position={position}
-      rotation={rotation}
-      scale={scale}
-    >
-      <boxGeometry />
-      <meshStandardMaterial color="#555555" />
-    </mesh>
+    <RigidBody type="fixed" colliders="cuboid" position={position} rotation={rotation} restitution={0.4}>
+      <mesh
+        castShadow
+        receiveShadow
+        scale={scale}
+      >
+        <boxGeometry />
+        <meshStandardMaterial color="#555555" transparent opacity={0.8} />
+      </mesh>
+    </RigidBody>
   );
 }

@@ -7,17 +7,30 @@ import { RigidBody } from '@react-three/rapier';
 
 // List of available Kenny character models
 const CHARACTER_MODELS = [
-  '/models/characters/character-male-a.glb',
-  '/models/characters/character-male-b.glb',
-  '/models/characters/character-male-c.glb',
-  '/models/characters/character-male-d.glb',
+  '/models/characters/character-male-a.glb',  // Blue jersey
+  '/models/characters/character-male-b.glb',  // Red jersey
+  '/models/characters/character-male-c.glb',  // Green jersey
+  '/models/characters/character-male-d.glb',  // Yellow jersey
 ];
 
-// Select a default model
-const DEFAULT_MODEL = CHARACTER_MODELS[0];
+// Team constants for easy referencing
+export const TEAM = {
+  OFFENSE: 0,  // Index for offense team (Blue - character-male-a)
+  DEFENSE: 1,  // Index for defense team (Red - character-male-b)
+};
 
-export const KennyPlayer = React.forwardRef(({ isMoving = false, direction = 0, scale = [1, 1, 1] }, ref) => {
-  const { scene, animations } = useGLTF(DEFAULT_MODEL);
+export const KennyPlayer = React.forwardRef(({ 
+  isMoving = false, 
+  direction = 0, 
+  scale = [1, 1, 1],
+  modelIndex = 0   // Default to first model (blue)
+}, ref) => {
+  // Ensure model index is valid
+  const safeModelIndex = Math.min(Math.max(0, modelIndex), CHARACTER_MODELS.length - 1);
+  const modelPath = CHARACTER_MODELS[safeModelIndex];
+  
+  // Load specified model
+  const { scene, animations } = useGLTF(modelPath);
   const modelRef = useRef();
   const mixerRef = useRef();
   const actionsRef = useRef({});
