@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useStore } from './store';
+import { GameController, PlayController } from '../controllers';
 
 export const PlayCTA = () => {
-  const { gameStarted, playActive, playEnded, actions } = useStore();
+  const { gameStarted } = GameController.getState();
+  const { playActive, playEnded, actions } = PlayController.getState();
   const [visible, setVisible] = useState(false);
   
   // Handle play start with Enter key
@@ -17,12 +18,39 @@ export const PlayCTA = () => {
   };
   
   useEffect(() => {
+    // Get latest state on each render
+    const gameState = GameController.getState();
+    const playState = PlayController.getState();
+    
     // Only show prompt when game is started but play is not active
-    if (gameStarted && !playActive && !playEnded) {
+    if (gameState.gameStarted && !playState.playActive && !playState.playEnded) {
       setVisible(true);
     } else {
       setVisible(false);
     }
+    
+    // Subscribe to state changes
+    const unsubGame = GameController.subscribe(
+      state => {
+        const playState = PlayController.getState();
+        if (state.gameStarted && !playState.playActive && !playState.playEnded) {
+          setVisible(true);
+        } else {
+          setVisible(false);
+        }
+      }
+    );
+    
+    const unsubPlay = PlayController.subscribe(
+      state => {
+        const gameState = GameController.getState();
+        if (gameState.gameStarted && !state.playActive && !state.playEnded) {
+          setVisible(true);
+        } else {
+          setVisible(false);
+        }
+      }
+    );
     
     // Add key listener
     window.addEventListener('keydown', handleKeyDown);
@@ -30,8 +58,10 @@ export const PlayCTA = () => {
     // Cleanup
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      unsubGame();
+      unsubPlay();
     };
-  }, [gameStarted, playActive, playEnded, actions]);
+  }, []);
   
   if (!visible) return null;
   

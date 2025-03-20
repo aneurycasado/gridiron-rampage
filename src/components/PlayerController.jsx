@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { RigidBody, CuboidCollider } from '@react-three/rapier';
 import { useKeyboardControls } from '@react-three/drei';
-import { useStore } from './store';
+import { PlayController, GameController, PossessionController } from '../controllers';
 import { Controls } from '../App';
 import { KennyPlayer, TEAM } from './models/characters/KennyPlayer';
 import * as THREE from 'three';
@@ -22,10 +22,22 @@ export const PlayerController = ({
   const visualRef = useRef(); // Reference for visual model rotation
   const [isGrounded, setIsGrounded] = useState(true);
   const [isActuallyMoving, setIsActuallyMoving] = useState(false);
-  const { gamePaused, playActive, actions } = useStore();
+  const [playActive, setPlayActive] = useState(false);
   const rotationRef = useRef(rotation);
   const targetRotationRef = useRef(rotation);
   const lastSafePosition = useRef({ x: 0, y: 1, z: 0 });
+  
+  // Get state from controllers
+  useEffect(() => {
+    // Subscribe to play state changes
+    const unsubPlay = PlayController.subscribe(
+      state => setPlayActive(state.playActive)
+    );
+    
+    return () => {
+      unsubPlay();
+    };
+  }, []);
   
   // Movement state
   const [isSprinting, setIsSprinting] = useState(false);
@@ -36,7 +48,7 @@ export const PlayerController = ({
   const walkSpeed = 5;
   const runSpeed = 10;
   const sprintSpeed = 15;
-  const defensiveSpeed = 8; // Slower speed for defensive player
+  const defensiveSpeed = 6.8; // Reduced from 8 to give offensive player more chance
   const accelerationRate = 0.15;
   const decelerationRate = 0.25;
   const damping = 0.1; // Higher value means more damping (0-1)
@@ -70,7 +82,7 @@ export const PlayerController = ({
   // Initial setup: register player with store
   useEffect(() => {
     if (bodyRef.current) {
-      actions.addPlayer({
+      PlayController.getState().actions.addPlayer({
         id,
         ref: bodyRef,
         position: bodyRef.current.translation(),
@@ -78,10 +90,10 @@ export const PlayerController = ({
       });
       
       return () => {
-        actions.removePlayer(id);
+        PlayController.getState().actions.removePlayer(id);
       };
     }
-  }, [id, actions]);
+  }, [id]);
   
   // Set initial rotation
   useEffect(() => {
@@ -96,8 +108,8 @@ export const PlayerController = ({
   // Move defensive player to correct position when play starts
   useEffect(() => {
     if (playActive && id === "player-defense") {
-      const { downs } = useStore.getState();
-      const lineOfScrimmageZ = -((downs.lineOfScrimmage / 100) * 200) + 100;
+      const { position, lineOfScrimmage } = PossessionController.getState();
+      const lineOfScrimmageZ = -((lineOfScrimmage / 100) * 200) + 100;
       const safeZ = clamp(lineOfScrimmageZ - 3, -95, 95);
       
       console.log(`Defensive player positioning at start of play: Line Z=${lineOfScrimmageZ}, Safe Z=${safeZ}`);
@@ -139,10 +151,10 @@ export const PlayerController = ({
               console.log("Activating defensive player AI pursuit");
               aiState.current.rushDelay = false;
               
-              // Apply initial forward impulse for a "rush" effect - reduced from 25 to 15
-              bodyRef.current.applyImpulse({ x: 0, y: 0, z: 15 }, true);
+              // Apply initial forward impulse for a "rush" effect - reduced from 15 to 10
+              bodyRef.current.applyImpulse({ x: 0, y: 0, z: 10 }, true);
             }
-          }, 300);
+          }, 800); // Increased from 300ms to 800ms
         }
       }, 50);
     } else {
@@ -154,10 +166,11 @@ export const PlayerController = ({
   // Main physics and movement update loop
   useFrame((state, delta) => {
     // Skip updates when game is paused or no body reference
-    if (!bodyRef.current || gamePaused) return;
+    if (!bodyRef.current || GameController.getState().gamePaused) return;
     
     // Get latest game state
-    const { playActive, playEnded, players, activePossession, downs } = useStore.getState();
+    const playState = PlayController.getState();
+    const { playEnded, players, activePossession } = playState;
     const currentPos = bodyRef.current.translation();
     
     // Boundary check - reset player if outside field
@@ -315,9 +328,9 @@ export const PlayerController = ({
             if (length > 0) {
               // Only update direction if cooldown has elapsed
               if (aiState.current.lastDirectionChange >= aiState.current.directionChangeCooldown) {
-                // Add slight randomization to movement direction (wobble effect)
-                const randomX = (Math.random() - 0.5) * 0.3; // ±15% randomization
-                const randomZ = (Math.random() - 0.5) * 0.3; // ±15% randomization
+                // Add more randomization to movement direction (wobble effect)
+                const randomX = (Math.random() - 0.5) * 0.5; // ±25% randomization (increased from 0.3)
+                const randomZ = (Math.random() - 0.5) * 0.5; // ±25% randomization (increased from 0.3)
                 
                 // Set movement direction with slight randomization
                 moveDirection.current.set(
@@ -327,7 +340,7 @@ export const PlayerController = ({
                 ).normalize(); // Normalize after adding randomness
                 
                 // Vary speed slightly for more human-like movement
-                const speedVariation = 0.85 + (Math.random() * 0.3); // 85-115% of base speed
+                const speedVariation = 0.7 + (Math.random() * 0.4); // 70-110% of base speed (more variance, lower minimum)
                 targetSpeed.current = defensiveSpeed * speedVariation;
                 
                 // Set visual rotation to face target
@@ -335,37 +348,46 @@ export const PlayerController = ({
                 
                 // Reset cooldown timer
                 aiState.current.lastDirectionChange = 0;
+                
+                // Occasional hesitation/pause in defensive movement (5% chance per direction change)
+                if (Math.random() < 0.05) {
+                  // Brief pause in movement
+                  targetSpeed.current = 0;
+                  
+                  // Longer cooldown before next direction change
+                  aiState.current.lastDirectionChange = -0.5; // Force a delay before next update
+                }
               }
               // If still in cooldown, maintain current direction but keep pursuing
               else {
                 // Maintain current target speed
                 targetSpeed.current = Math.min(targetSpeed.current, defensiveSpeed);
               }
-            }
-            
-            // Check for collision with offensive player
-            if (length < 3.0 && !hasCollidedWithOffense) { // Increased from 2.5 to 3.0
-              setHasCollidedWithOffense(true);
               
-              // Record tackle position for next play
-              const safePosition = {
-                x: clamp(targetX, -45, 45),
-                y: 1,
-                z: clamp(targetZ, -95, 95)
-              };
-              actions.recordTacklePosition(safePosition);
-              
-              // End the play
-              actions.endPlay();
-              console.log("Tackle! Play ended.");
-              
-              // Play tackle sound
-              try {
-                const audio = new Audio(`/sounds/tackle.mp3`);
-                audio.volume = 0.7;
-                audio.play().catch(e => console.log("Audio play error:", e));
-              } catch (e) {
-                console.error("Error playing tackle sound:", e);
+              // Check for collision with offensive player
+              if (length < 2.5 && !hasCollidedWithOffense) { // Reduced from 3.0 to 2.5
+                setHasCollidedWithOffense(true);
+                
+                // Record tackle position for next play
+                const safePosition = {
+                  x: clamp(targetX, -45, 45),
+                  y: 1,
+                  z: clamp(targetZ, -95, 95)
+                };
+                PlayController.getState().actions.recordTacklePosition(safePosition);
+                
+                // End the play
+                PlayController.getState().actions.endPlay();
+                console.log("Tackle! Play ended.");
+                
+                // Play tackle sound
+                try {
+                  const audio = new Audio(`/sounds/tackle.mp3`);
+                  audio.volume = 0.7;
+                  audio.play().catch(e => console.log("Audio play error:", e));
+                } catch (e) {
+                  console.error("Error playing tackle sound:", e);
+                }
               }
             }
           } 
@@ -462,7 +484,7 @@ export const PlayerController = ({
     
     // Update position and rotation in store
     if (currentPos.x > -50 && currentPos.x < 50 && currentPos.z > -100 && currentPos.z < 100) {
-      actions.updatePlayerPosition(id, currentPos, rotationRef.current);
+      PlayController.getState().actions.updatePlayerPosition(id, currentPos, rotationRef.current);
     }
   });
   
@@ -540,7 +562,7 @@ export const PlayerController = ({
         bodyRef.current.applyImpulse({ x: 0, y: 5, z: 0 });
         
         // Add rage points for wall hits
-        actions.addRagePoints(5);
+        PlayController.getState().actions.addRagePoints(5);
         
         // Play wall hit sound if available
         try {
@@ -585,6 +607,7 @@ export const PlayerController = ({
       onCollisionEnter={handleCollisionStart}
       onCollisionExit={handleCollisionEnd}
       name={id}
+      type="dynamic"
     >
       <CuboidCollider args={[0.25, 0.7, 0.25]} />
       <group ref={visualRef} rotation={[0, rotationRef.current, 0]}>

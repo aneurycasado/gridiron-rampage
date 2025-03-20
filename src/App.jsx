@@ -2,10 +2,10 @@ import { Canvas } from '@react-three/fiber'
 import { Experience } from './components/Experience'
 import { Suspense, useMemo } from 'react'
 import { KeyboardControls, Loader } from '@react-three/drei'
-import { useStore } from "./components/store";
+import { GameController } from "./controllers";
 import * as THREE from "three";
 import { Landing } from './Landing'
-import { HUD } from './HUD'
+import { HUD } from './components/HUD'
 import { PauseMenu } from './components/PauseMenu'
 import { PauseButton } from './components/PauseButton'
 import { PlayCTA } from './components/PlayCTA'
@@ -119,10 +119,9 @@ function App() {
           <Canvas
             shadows
             camera={{
-              fov: 75,
+              fov: 70,
               near: 0.1,
-              far: 1000,
-              position: [0, 10, 20]
+              far: 1000
             }}
             gl={{ 
               antialias: true,

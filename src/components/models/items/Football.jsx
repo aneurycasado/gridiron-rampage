@@ -1,14 +1,14 @@
 import React, { useRef, useEffect, forwardRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { useStore } from '../../store';
+import { PlayController, PossessionController } from '../../../controllers';
 import { RigidBody } from '@react-three/rapier';
 
 // Football is modified to take on a more realistic shape and appearance
 export const Football = forwardRef(({ id, position = [0, 1, 0], rotation = 0, ...props }, ref) => {
   const meshRef = useRef();
   const bodyRef = useRef();
-  const { actions } = useStore();
+  const actions = PlayController.getState().actions;
   
   // Football physics properties
   const velocity = useRef({ x: 0, y: 0, z: 0 });
@@ -70,7 +70,7 @@ export const Football = forwardRef(({ id, position = [0, 1, 0], rotation = 0, ..
     if (delta > 0.1) delta = 0.1;
     
     // Get play state and players from store
-    const { playActive, playEnded, players } = useStore.getState();
+    const { playActive, playEnded, players } = PlayController.getState();
     
     // When play starts or is active, ensure ball is attached to offensive player if not thrown
     if (playActive && !isThrown.current) {
@@ -203,15 +203,15 @@ export const Football = forwardRef(({ id, position = [0, 1, 0], rotation = 0, ..
     // When play is not active (or ended), reset the ball position and ownership
     if ((!playActive || playEnded)) {
       // Get the latest downs state to position ball correctly
-      const { downs } = useStore.getState();
+      const possessionState = PossessionController.getState();
       
       // Calculate the Z position based on the line of scrimmage (convert yard line to 3D space)
       // The field is 200 units long (-100 to +100 in Z), so we need to convert yard lines (0-100) to this space
-      const ballZPosition = -((downs.position / 100) * 200) + 100;
+      const ballZPosition = -((possessionState.position / 100) * 200) + 100;
       
       // Calculate the ball direction based on possession
       // If defense has possession, ball should face the opposite direction
-      const ballYRotation = downs.possession === "offense" ? 0 : Math.PI;
+      const ballYRotation = possessionState.possession === "offense" ? 0 : Math.PI;
       
       // Reset ball position to current line of scrimmage
       bodyRef.current.setTranslation({
@@ -239,7 +239,7 @@ export const Football = forwardRef(({ id, position = [0, 1, 0], rotation = 0, ..
         position: [0, 0.15, ballZPosition]
       });
       
-      console.log(`Football reset at position: ${ballZPosition}, possession: ${downs.possession}`);
+      console.log(`Football reset at position: ${ballZPosition}, possession: ${possessionState.possession}`);
     }
   });
 
@@ -284,9 +284,22 @@ export const Football = forwardRef(({ id, position = [0, 1, 0], rotation = 0, ..
       bodyRef.current.attachToPlayer = attachToPlayer;
     }
   }, []);
+  
+  // Subscribe to the PlayController to update actions when needed
+  useEffect(() => {
+    const unsubscribe = PlayController.subscribe(() => {
+      // Update the actions reference when the store changes
+      const newActions = PlayController.getState().actions;
+      actions = newActions;
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   return (
-    <RigidBody ref={bodyRef} position={position} rotation={[Math.PI / 2, 0, 0]}>
+    <RigidBody ref={bodyRef} position={position} rotation={[Math.PI / 2, 0, 0]} type="dynamic">
       <group scale={[1, 0.6, 2]}>
         {/* Football mesh - using scaled sphere for football shape */}
         <mesh ref={meshRef} castShadow receiveShadow>

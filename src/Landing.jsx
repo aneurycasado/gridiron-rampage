@@ -1,8 +1,9 @@
-import { useStore } from "./components/store";
+import { GameController } from "./controllers";
 import { useEffect, useRef, useState } from "react";
 
 export const Landing = () => {
-  const { gameStarted, actions } = useStore();
+  const gameState = GameController.getState();
+  const [gameStarted, setGameStarted] = useState(gameState.gameStarted);
   const [setupStatus, setSetupStatus] = useState(0);
   const [controlType, setControlType] = useState("keyboard");
   const [animationPlayed, setAnimationPlayed] = useState(false);
@@ -14,14 +15,26 @@ export const Landing = () => {
   // Start game function
   const startGame = () => {
     console.log("Starting game with controls:", controlType);
-    actions.setControls(controlType);
-    actions.setGameStarted(true);
+    GameController.getState().actions.setControls(controlType);
+    GameController.getState().actions.setGameStarted(true);
+    setGameStarted(true);
   };
   
   const goToControlsScreen = () => {
     console.log("Going to controls screen");
     setSetupStatus(1);
   };
+  
+  // Subscribe to game state changes
+  useEffect(() => {
+    const unsubscribe = GameController.subscribe(
+      state => setGameStarted(state.gameStarted)
+    );
+    
+    return () => {
+      unsubscribe();
+    };
+  }, []);
   
   // Trigger intro animation once on component mount
   useEffect(() => {

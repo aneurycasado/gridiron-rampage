@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
-import { useStore } from './store';
+import { GameController } from '../controllers';
 
 export const PauseMenu = () => {
-  const { gamePaused, actions } = useStore();
+  const { gamePaused, actions } = GameController.getState();
   
   const resumeGame = () => {
     actions.setPaused(false);
@@ -12,7 +12,7 @@ export const PauseMenu = () => {
     actions.setPaused(false);
     // Reset game state
     setTimeout(() => {
-      actions.setGameStarted(false);
+      actions.resetGame();
     }, 100);
   };
   
